@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 
@@ -12,6 +13,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float _Time = 0.1f;
     [SerializeField] private bool _IsPlayerTurn = true;
 
+    [SerializeField] private int _EntityNum = 0;
+    [SerializeField] private List<Entity> _Entities = new List<Entity>();
+
+
 
 
     public bool IsPlayerTurn
@@ -23,23 +28,67 @@ public class GameManager : MonoBehaviour
     }
 
 
-
-    public void EndTurn()
+    private void StartTurn()
     {
-        Debug.Log("EndTurn");
+        Entity entity = _Entities[_EntityNum];
 
-        _IsPlayerTurn = false;
-        StartCoroutine(WaitForTurns());
+        Debug.Log($"{entity.name} starts its turn!");
+
+
+
+        Player player = entity.GetComponent<Player>();
+        if(player != null)
+        {
+            _IsPlayerTurn = true;
+        }
+        else if(entity.IsSentient == true)
+        {
+            // We don't have AI logic yet, so just skip their turn.
+            Action.SkipAction(entity);
+        }
     }
 
 
 
-    private IEnumerator WaitForTurns()
+    public void EndTurn()
     {
-        Debug.Log("WaitForTurns");
+        Entity entity = _Entities[_EntityNum];
+
+        Debug.Log($"{entity.name} ends its turn!");
+
+        Player player = entity.GetComponent<Player>();
+        if (player != null)
+        {
+            _IsPlayerTurn = false;
+        }
+
+        _EntityNum = (_EntityNum + 1) % _Entities.Count;
+        
+        StartCoroutine(TurnDelay());
+    }
+
+
+
+    public IEnumerator TurnDelay()
+    {
+        Debug.Log("TurnDelay");
 
         yield return new WaitForSeconds(_Time);
-        _IsPlayerTurn = true;
+        StartTurn();
+    }
+
+
+
+    public void AddEntity(Entity entity)
+    {
+        _Entities.Add(entity);
+    }
+
+
+
+    public void InsertEntity(Entity entity, int index)
+    {
+        _Entities.Insert(index, entity);
     }
 
 
@@ -55,15 +104,5 @@ public class GameManager : MonoBehaviour
 
         // Self destruct any duplicate instances
         Destroy(gameObject);
-    }
-
-
-
-
-    private void Start()
-    {
-        GameObject playerResource = Resources.Load<GameObject>("Player");
-        GameObject player = Instantiate(playerResource);
-        player.name = "Player";
     }
 }
