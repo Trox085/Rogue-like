@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
@@ -30,7 +31,7 @@ internal sealed class ProcGen
             int roomX = Random.Range(0, mapWidth - roomWidth - 1);
             int roomY = Random.Range(0, mapHeight - roomHeight - 1);
 
-            RectangularRoom newRoom = new RectangularRoom(roomX, roomY, roomWidth, roomHeight, mapManager.Rooms.Count);
+            RectangularRoom newRoom = new RectangularRoom(roomX, roomY, roomWidth, roomHeight, rooms.Count);
 
             // Check if this room intersects with any other rooms
             if (newRoom.Overlaps(rooms) == true)
@@ -40,7 +41,7 @@ internal sealed class ProcGen
 
 
             // If there are no intersections then the room is valid.
-            Debug.Log($"Generating room #{rooms.Count + 1})");
+            Debug.Log($"Generating room #{rooms.Count + 1}.");
 
             // Dig out this room's inner area and build the walls.
             for (int x = roomX; x < roomX + roomWidth; x++)
@@ -57,23 +58,16 @@ internal sealed class ProcGen
                     }
                     else
                     {
-                        // Clear any obstacles.
-                        TileBase obstacleTile = obstacleMap.GetTile(new Vector3Int(x, y, 0));
-                        if(obstacleTile != null)
-                        {
-                            obstacleMap.SetTile(new Vector3Int(x, y, 0), null);
-                        }
-
-                        // Set the floor tile
-                        floorMap.SetTile(new Vector3Int(x, y, 0), floorTile);
+                        SetFloorTile(new Vector3Int(x, y, 0), floorMap, obstacleMap, floorTile);
                     }
                 }
             }
 
-            if (mapManager.Rooms.Count > 0)
+            if (rooms.Count > 0)
             {
                 // Dig out a tunnel between this room and the previous one.
-                TunnelBetween(mapManager.Rooms[mapManager.Rooms.Count - 1], newRoom);
+                Debug.Log($"Tunneling between room #{rooms.Count} and #{rooms.Count + 1}.");
+                TunnelBetween(rooms[rooms.Count - 1], newRoom);
             }
 
             rooms.Add(newRoom);
@@ -90,6 +84,59 @@ internal sealed class ProcGen
             Vector2Int centerOfStartingRoom = startingRoom.Center();
             mapManager.CreatePlayer(centerOfStartingRoom);
         }
+    }
+
+
+
+    private Color GenerateRandomBlackContrastingColor()
+    {
+        Color neonColor = Color.black;
+        float maxAttempts = 1000;  // Maximum attempts to find a suitable color
+        int attempts = 0;
+
+        while (IsNeonContrasting(neonColor, Color.black) == false && attempts < maxAttempts)
+        {
+            neonColor = new Color(Random.value, Random.value, Random.value);
+            attempts++;
+        }
+
+        return neonColor;
+    }
+
+
+
+    private bool IsNeonContrasting(Color color1, Color color2)
+    {
+        float luminanceThreshold = 0.5f;  // Adjust as needed
+
+        float luminance1 = color1.r * 0.299f + color1.g * 0.587f + color1.b * 0.114f;
+        float luminance2 = color2.r * 0.299f + color2.g * 0.587f + color2.b * 0.114f;
+
+        return Mathf.Abs(luminance1 - luminance2) >= luminanceThreshold;
+    }
+
+
+
+    private void SetFloorTile(Vector3Int position, Tilemap floorMap, Tilemap obstacleMap, TileBase floorTile)
+    {
+        SetFloorTile(position, floorMap, obstacleMap, floorTile, Color.grey);
+    }
+
+
+
+    private void SetFloorTile(Vector3Int position, Tilemap floorMap, Tilemap obstacleMap, TileBase floorTile, Color color)
+    {
+        // Clear any obstacles.
+        TileBase obstacleTile = obstacleMap.GetTile(position);
+        if (obstacleTile != null)
+        {
+            obstacleMap.SetTile(position, null);
+        }
+
+        // Set the floor tile
+        floorMap.SetTile(position, floorTile);
+        floorMap.SetTileFlags(position, TileFlags.None);
+        floorMap.SetColor(position, color);
     }
 
 
@@ -111,9 +158,13 @@ internal sealed class ProcGen
         Vector2Int oldRoomCenter = oldRoom.Center();
         Vector2Int newRoomCenter = newRoom.Center();
 
-        List<Vector2Int> tunnelCoords;
-        if (Random.value < 0.75f)
+        List<Vector2Int> tunnelCoords = new List<Vector2Int>();
+
+        float randomTunnelValue = Random.value;
+        if(randomTunnelValue < 0.25f)
         {
+            Debug.Log("Bresenham Line");
+
             // Create an L-shaped tunnel between the two points.
             Vector2Int tunnelCorner;
 
@@ -128,44 +179,81 @@ internal sealed class ProcGen
                 tunnelCorner = new Vector2Int(oldRoomCenter.x, newRoomCenter.y);
             }
 
-            List<Vector2Int> bresenhamLineCoords = GenerateBresenhamLine(oldRoomCenter, tunnelCorner, 1);
-
-            tunnelCoords = new List<Vector2Int>();
-            tunnelCoords.AddRange(bresenhamLineCoords);
-
-            bresenhamLineCoords = GenerateBresenhamLine(tunnelCorner, newRoomCenter, 1);
-            tunnelCoords.AddRange(bresenhamLineCoords);
+            BresenhamLine.Compute(oldRoomCenter, tunnelCorner, tunnelCoords);
+            BresenhamLine.Compute(tunnelCorner, newRoomCenter, tunnelCoords);
         }
         else
         {
             // Create a direct connection between the two points.
-            tunnelCoords = GenerateBresenhamLine(oldRoomCenter, newRoomCenter, 0.5f);
+
+            if (randomTunnelValue < 0.50f)
+            {
+                Debug.Log("Breadth First Search");
+                BreadthFirstSearch.FindPath(oldRoomCenter, newRoomCenter, true, tunnelCoords);
+            }
+            else if (randomTunnelValue < 0.75f)
+            {
+                Debug.Log("Intersecting Coordinates");
+                IntersectingCoordinates.Compute(oldRoomCenter, newRoomCenter, true, tunnelCoords);
+            }
+            else
+            {
+                Debug.Log("A*");
+                AStar.FindPath(oldRoomCenter, newRoomCenter, true, tunnelCoords);
+            }
         }
-            
-        
-        
+
+
+        StringBuilder sb = new StringBuilder();
+        foreach (Vector2Int position in tunnelCoords)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(" -> ");
+            }
+            sb.Append($"{position}");
+        }
+        Debug.Log(sb.ToString());
+
+
 
         // Set the tiles for this tunnel.
+        //for (int i = 0; i < tunnelCoords.Count; i++)
+        //{
+        //    Vector2Int tunnelCoord = tunnelCoords[i];
+
+        //    SetFloorTile(new Vector3Int(tunnelCoord.x, tunnelCoord.y, 0), floorMap, obstacleMap, floorTile);
+        //}
+        //tunnelCoords.Sort(delegate (Vector2Int a, Vector2Int b)
+        //{
+        //    int compareValue = a.x.CompareTo(b.x);
+        //    if (compareValue != 0)
+        //    {
+        //        return compareValue;
+        //    }
+
+        //    compareValue = a.y.CompareTo(b.y);
+        //    return compareValue;
+        //});
+
+        Color tunnelColor = GenerateRandomBlackContrastingColor();
+
         for (int i = 0; i < tunnelCoords.Count; i++)
         {
             Vector2Int tunnelCoord = tunnelCoords[i];
 
-            // Clear any obstacles for the position.
-            if (obstacleMap.HasTile(new Vector3Int(tunnelCoord.x, tunnelCoord.y, 0)))
-            {
-                obstacleMap.SetTile(new Vector3Int(tunnelCoord.x, tunnelCoord.y, 0), null);
-            }
+            SetFloorTile(new Vector3Int(tunnelCoord.x, tunnelCoord.y, 0), floorMap, obstacleMap, floorTile, tunnelColor);
 
-            // Set the floor tile.
-            floorMap.SetTile(new Vector3Int(tunnelCoord.x, tunnelCoord.y, 0), floorTile);
-
-            // Set the wall tiles around this tile to be walls.
+            //Set the wall tiles around this tile to be walls.
             for (int x = tunnelCoord.x - 1; x <= tunnelCoord.x + 1; x++)
             {
                 for (int y = tunnelCoord.y - 1; y <= tunnelCoord.y + 1; y++)
                 {
-                    if (SetWallTileIfEmpty(new Vector3Int(x, y, 0), floorMap, obstacleMap, wallTile))
+                    Vector3Int position = new Vector3Int(x, y, 0);
+
+                    if (SetWallTileIfEmpty(position, floorMap, obstacleMap, wallTile) == true)
                     {
+                        //Debug.Log($"Position ({x}, {y}) is not empty.");
                         continue;
                     }
                 }
@@ -175,66 +263,7 @@ internal sealed class ProcGen
 
 
 
-    private List<Vector2Int> GenerateBresenhamLine(Vector2Int start, Vector2Int end, float lineWidth)
-    {
-        List<Vector2Int> linePoints = new List<Vector2Int>();
-
-        int dx = Mathf.Abs(end.x - start.x);
-        int sx = (start.x < end.x) ? 1 : -1;
-        int dy = Mathf.Abs(end.y - start.y);
-        int sy = (start.y < end.y) ? 1 : -1;
-        int err = dx - dy;
-        int e2, x2, y2;
-
-        float ed = (dx + dy == 0) ? 1 : Mathf.Sqrt(dx * dx + dy * dy);
-
-        lineWidth = (lineWidth + 1) / 2;
-
-        while (start.x != end.x || start.y != end.y)
-        {
-            linePoints.Add(start);
-
-            e2 = err;
-            x2 = start.x;
-
-            if (2 * e2 >= -dx)
-            {
-                for (e2 += dy, y2 = start.y; e2 < ed * lineWidth && (end.y != y2 || dx > dy); e2 += dx)
-                {
-                    linePoints.Add(new Vector2Int(x2, y2 += sy));
-                }
-
-                if (start.x == end.x)
-                {
-                    linePoints.Add(start); // Add the end point
-                    break;
-                }
-
-                e2 = err;
-                err -= dy;
-                start.x += sx;
-            }
-
-            if (2 * e2 <= dy)
-            {
-                for (e2 = dx - e2; e2 < ed * lineWidth && (end.x != x2 || dx < dy); e2 += dy)
-                {
-                    linePoints.Add(new Vector2Int(x2 += sx, start.y));
-                }
-
-                if (start.y == end.y)
-                {
-                    linePoints.Add(start); // Add the end point
-                    break;
-                }
-
-                err += dx;
-                start.y += sy;
-            }
-        }
-
-        return linePoints;
-    }
+    
 
 
 
@@ -248,13 +277,13 @@ internal sealed class ProcGen
     /// <returns>Returns <c>true</c> if position has been set to a wall tile; <c>false</c> otherwise.</returns>
     private bool SetWallTileIfEmpty(Vector3Int position, Tilemap floorMap, Tilemap obstacleMap, TileBase wallTile)
     {
-        TileBase tile = floorMap.GetTile(new Vector3Int(position.x, position.y, 0));
+        TileBase tile = floorMap.GetTile(position);
         if(tile != null)
         {
             return true;
         }
 
-        obstacleMap.SetTile(new Vector3Int(position.x, position.y, 0), wallTile);
+        obstacleMap.SetTile(position, wallTile);
         return false;
     }
 }

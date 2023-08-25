@@ -28,11 +28,26 @@ public class GameManager : MonoBehaviour
     }
 
 
+
+    public List<Entity> Entities
+    {
+        get
+        {
+            return _Entities;
+        }
+    }
+
+
     private void StartTurn()
     {
         Entity entity = _Entities[_EntityNum];
 
-        Debug.Log($"{entity.name} starts its turn!");
+        if (entity == null)
+        {
+            return;
+        }
+
+        //Debug.Log($"{entity.name} starts its turn!");
 
 
 
@@ -54,7 +69,12 @@ public class GameManager : MonoBehaviour
     {
         Entity entity = _Entities[_EntityNum];
 
-        Debug.Log($"{entity.name} ends its turn!");
+        if(entity == null)
+        {
+            return;
+        }
+
+        //Debug.Log($"{entity.name} ends its turn!");
 
         Player player = entity.GetComponent<Player>();
         if (player != null)
@@ -71,7 +91,7 @@ public class GameManager : MonoBehaviour
 
     public IEnumerator TurnDelay()
     {
-        Debug.Log("TurnDelay");
+        //Debug.Log("TurnDelay");
 
         yield return new WaitForSeconds(_Time);
         StartTurn();
@@ -84,11 +104,9 @@ public class GameManager : MonoBehaviour
         _Entities.Add(entity);
     }
 
-
-
-    public void InsertEntity(Entity entity, int index)
+    public void RemoveEntity(Entity entity)
     {
-        _Entities.Insert(index, entity);
+        _Entities.Remove(entity);
     }
 
 
@@ -99,10 +117,23 @@ public class GameManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+            Random.InitState(123);
             return;
         }
 
         // Self destruct any duplicate instances
         Destroy(gameObject);
+    }
+
+
+
+    private void FixedUpdate()
+    {
+        if (Input.GetKey(KeyCode.Space))
+        {
+            // Do something when the 'Escape' key is pressed
+            MapManager mapManager = MapManager.Instance;
+            mapManager.Restart();
+        }
     }
 }

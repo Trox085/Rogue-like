@@ -70,7 +70,7 @@ public class Player : MonoBehaviour, Controls.IPlayerActions
 
     private void MovePlayer()
     {
-        Debug.Log("MovePlayer");
+        //Debug.Log("MovePlayer");
 
         Controls.PlayerActions playerActions = _Controls.Player;
         InputAction inputAction = playerActions.Movement;
@@ -80,12 +80,12 @@ public class Player : MonoBehaviour, Controls.IPlayerActions
         // Round each movement delta to the nearest integer.  This helps with diagonal movement.
         Vector2 roundedMovementVector = new Vector2(Mathf.Round(movementVector.x), Mathf.Round(movementVector.y));
 
-        Debug.Log($"roundedMovementVector: {roundedMovementVector}");
+        //Debug.Log($"roundedMovementVector: {roundedMovementVector}");
 
         Vector3 newPosition = transform.position + (Vector3) roundedMovementVector;
         if (IsValidPosition(newPosition) == false)
         {
-            Debug.Log("Movement denied.");
+            //Debug.Log("Movement denied.");
             return;
         }
 

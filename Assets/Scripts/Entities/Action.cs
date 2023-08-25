@@ -14,8 +14,9 @@ internal static class Action
 
     public static void MovementAction(Entity entity, Vector2 direction)
     {
-        Debug.Log($"{entity.name} moves {direction}!");
+        //Debug.Log($"{entity.name} moves {direction}!");
         entity.Move(direction);
+        entity.UpdateFieldOfView();
 
         GameManager gameManager = GameManager.Instance;
         gameManager.EndTurn();
